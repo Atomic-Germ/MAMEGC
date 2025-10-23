@@ -12,10 +12,7 @@ jobs:
     container: ghcr.io/extremscorner/libogc2:latest
 
     steps:
-    - name: Install packages
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends gcc gcc-mingw-w64-i686 libc6-dev libc6-i386 p7zip-full xorriso
+
     - name: Checkout mamegc repo
       uses: actions/checkout@v4
       with:

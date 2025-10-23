@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include "fileop.h"
 
-static void* xfb = nullptr;
-static GXRModeObj* rmode = nullptr;
+static void* xfb = NULL;
+static GXRModeObj* rmode = NULL;
 
 static void init_video()
 {
