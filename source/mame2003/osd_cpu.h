@@ -105,13 +105,43 @@ typedef struct {
 
 #define MAX_REGS        128
 
-#define REG_PC          0
-#define REG_SP          1
-#define REG_FLAGS       2
-#define REG_A           3
-#define REG_B           4
-#define REG_X           5
-#define REG_Y           6
+/* Generic register IDs (high numbers to avoid conflicts with CPU-specific ones) */
+#define REG_PC          0x1000
+#define REG_SP          0x1001
+#define REG_FLAGS       0x1002
+#define REG_A           0x1003
+#define REG_B           0x1004
+#define REG_X           0x1005
+#define REG_Y           0x1006
+#define REG_PREVIOUSPC  0x1007
+#define REG_SP_CONTENTS 0x1008
+
+/***************************************************************************
+ * CPU Info Strings
+ ***************************************************************************/
+
+#define CPU_INFO_REG        0x10000000
+#define CPU_INFO_FLAGS      0x40000000
+#define CPU_INFO_NAME       0x40000001
+#define CPU_INFO_FAMILY     0x40000002
+#define CPU_INFO_VERSION    0x40000003
+#define CPU_INFO_FILE       0x40000004
+#define CPU_INFO_CREDITS    0x40000005
+#define CPU_INFO_REG_LAYOUT 0x40000006
+#define CPU_INFO_WIN_LAYOUT 0x40000007
+
+/***************************************************************************
+ * Special IRQ Lines
+ ***************************************************************************/
+
+#define IRQ_LINE_NMI    127  /* Non-maskable interrupt */
+
+/***************************************************************************
+ * Z80 Interrupt States
+ ***************************************************************************/
+
+#define Z80_INT_REQ     0x01  /* Interrupt requested */
+#define Z80_INT_IEO     0x02  /* Interrupt enable out */
 
 /***************************************************************************
  * IRQ Line States
@@ -121,6 +151,35 @@ typedef struct {
 #define ASSERT_LINE     1
 #define HOLD_LINE       2
 #define PULSE_LINE      3
+
+/***************************************************************************
+ * PAIR Type - Union for byte/word access
+ ***************************************************************************/
+
+/* PAIR: Union for accessing bytes/words in machine-independent way */
+typedef union {
+#ifdef MSB_FIRST
+    struct { UINT8 h3,h2,h,l; } b;
+    struct { UINT16 h,l; } w;
+#else
+    struct { UINT8 l,h,h2,h3; } b;
+    struct { UINT16 l,h; } w;
+#endif
+    UINT32 d;
+} PAIR;
+
+/***************************************************************************
+ * Z80 Daisy Chain (for interrupt handling)
+ ***************************************************************************/
+
+#define Z80_MAXDAISY 4  /* Maximum daisy chain devices */
+
+typedef struct {
+    void (*reset)(int);              /* Reset callback */
+    int  (*interrupt_entry)(int);    /* Entry callback */
+    void (*interrupt_reti)(int);     /* RETI callback */
+    int  irq_param;                  /* Callback parameter */
+} Z80_DaisyChain;
 
 /***************************************************************************
  * CPU Interface Functions (will be implemented)

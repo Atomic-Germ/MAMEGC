@@ -28,7 +28,12 @@
 #endif
 
 #ifndef INLINE
-#define INLINE static __inline__
+#define INLINE __inline__
+#endif
+
+/* GameCube is big-endian (PowerPC) */
+#ifndef MSB_FIRST
+#define MSB_FIRST 1
 #endif
 
 /* Disable unused features for GameCube */
