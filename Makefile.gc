@@ -56,7 +56,7 @@ LIBS := -lfat -logc -lm
 LIBDIRS := $(PORTLIBS)
 
 #---------------------------------------------------------------------------------
-# Build system (from devkitPro templates; mirrors snes9xGC flow)
+# Build system (from devkitPro templates; mirrors mameGC flow)
 #---------------------------------------------------------------------------------
 ifneq ($(BUILD),$(notdir $(CURDIR)))
 

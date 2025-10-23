@@ -2,11 +2,11 @@
 
 A GameCube homebrew project to port a limited, fast-loading subset of MAME to Nintendo GameCube.
 
-We follow the structure and build conventions of snes9xGC where practical (targets, folders, build rules, PGO hooks), but this project does not use Snes9x. The initial commit is a scaffold to build and run a minimal libogc-powered DOL on GameCube as a base for integrating MAME cores.
+We follow the structure and build conventions of mameGC where practical (targets, folders, build rules, PGO hooks), but this project does not use MAME. The initial commit is a scaffold to build and run a minimal libogc-powered DOL on GameCube as a base for integrating MAME cores.
 
 ## Goals
 - GameCube native DOL with libogc, using devkitPPC
-- Repository layout and Makefile conventions inspired by snes9xGC
+- Repository layout and Makefile conventions inspired by mameGC
 - Start minimal, add MAME drivers incrementally (targeting small/8-bit boards first)
 - Keep binary size small and performance predictable on 486 MHz Gekko CPU
 
@@ -17,11 +17,11 @@ Requirements:
 
 Commands:
 - make gc            # Build GameCube DOL (executables/mamegc-gc.dol)
-- make gc-run        # Send DOL via psoload (optional, same as snes9xGC)
+- make gc-run        # Send DOL via psoload (optional, same as mameGC)
 - make gc-clean      # Clean GameCube build
 - make gc-pgo-generate / gc-pgo-optimize  # PGO hooks (future use)
 
-## Conventions borrowed from snes9xGC
+## Conventions borrowed from mameGC
 - Top-level Makefile that delegates to platform-specific Makefiles
 - Makefile.gc uses devkitPPC gamecube_rules
 - Output placed in executables/, intermediates in build_gc
@@ -36,9 +36,9 @@ Commands:
 
 ## Roadmap (high level)
 1. Platform skeleton (this commit): video/console init, controller polling
-2. Filesystem layer compatible with SD Gecko/SD2SP2 (reuse patterns from snes9xGC fileop)
+2. Filesystem layer compatible with SD Gecko/SD2SP2 (reuse patterns from mameGC fileop)
 3. Minimal MAME core bootstrap (no UI): fixed ROM set, hardcoded driver for proof-of-concept
-4. Basic menu (reuse style of snes9xGC gui later), ROM selector, simple settings
+4. Basic menu (reuse style of mameGC gui later), ROM selector, simple settings
 5. Performance work: frameskip, audio options, blitting paths, PGO
 
 ## Notes
