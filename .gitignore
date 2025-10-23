@@ -1,0 +1,76 @@
+# Build outputs
+executables/
+*.dol
+*.elf
+*.map
+
+# Build directories
+build_gc/
+build_gc_pgo_gen/
+build_gc_pgo_use/
+build_wii/
+build_wii_pgo_gen/
+build_wii_pgo_use/
+
+# PGO data
+pgo_data/
+*.gcda
+*.gcno
+
+# Dependencies
+*.d
+
+# Object files
+*.o
+*.lo
+*.ko
+*.obj
+*.elf
+
+# Libraries
+*.lib
+*.a
+*.la
+
+# Shared objects
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Distribution
+dist/
+*.zip
+*.tar.gz
+
+# Docker
+.dockerignore
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# ROM files (don't commit copyrighted content)
+roms/
+*.zip
+*.7z
+
+# Save states
+saves/
+*.sta
+*.sav
+
+# Config files (may contain personal paths)
+config.ini

@@ -1,6 +1,6 @@
-# Docker Build Setup for MAME GC/Wii
+# Docker Build Setup for MAME2003 GameCube Port
 
-This directory contains Docker-based build scripts for MAME GC/Wii development.
+This directory contains Docker-based build scripts for MAME2003 GameCube development.
 
 ## Prerequisites
 
@@ -10,16 +10,20 @@ This directory contains Docker-based build scripts for MAME GC/Wii development.
 ## Quick Start
 
 ```bash
-# Build regular versions for both platforms
-./docker-build.sh build all
+# Build regular GameCube version
+./docker-build.sh build gc
 
-# For PGO optimization, see PGO_OPTIMIZATION.md
-./pgo-workflow.sh instrumented
+# Build PGO instrumented version
+./docker-build.sh pgo-generate gc
+
+# Build PGO optimized version (after collecting profile data)
+./docker-build.sh pgo-optimize gc
 ```
 
 ## Available Scripts
 
 ### docker-build.sh
+
 Main build script supporting multiple commands and platforms.
 
 ```bash
@@ -33,33 +37,21 @@ Commands:
   pgo-clean      - Clean PGO data and builds
 
 Platforms:
-  wii            - Nintendo Wii
   gc             - Nintendo GameCube
-  all            - Both platforms
+  all            - All supported platforms (currently just gc)
 
 Examples:
-  ./docker-build.sh build wii
-  ./docker-build.sh pgo-generate all
-  ./docker-build.sh clean all
-```
-
-### pgo-workflow.sh
-Complete PGO workflow automation script.
-
-```bash
-./pgo-workflow.sh [COMMAND]
-
-Commands:
-  instrumented   - Build PGO instrumented versions (Step 1)
-  optimized      - Build PGO optimized versions (Step 5)
-  clean          - Clean all builds and PGO data
-  (no arg)       - Show menu with options
+  ./docker-build.sh build gc
+  ./docker-build.sh pgo-generate gc
+  ./docker-build.sh clean gc
 ```
 
 ## Docker Images
 
 The build scripts use the official devkitPro Docker images:
-- `devkitpro/devkitppc:latest` - For Wii and GameCube development
+- `devkitpro/devkitppc:20240612` - For GameCube development (GCC 13.1.0)
+
+This specific version is chosen for optimal GameCube compatibility. GCC 15.1.0 (latest) produces larger binaries and may have GameCube regressions.
 
 ## Manual Docker Usage
 
@@ -68,34 +60,36 @@ The build scripts use the official devkitPro Docker images:
 docker-compose run --rm builder
 
 # Direct commands
-docker run --rm -v "$(pwd)":/workspace -w /workspace devkitpro/devkitppc:latest make wii
-docker run --rm -v "$(pwd)":/workspace -w /workspace devkitpro/devkitppc:latest make gc-pgo-generate
+docker run --rm -v "$(pwd)":/workspace -w /workspace devkitpro/devkitppc:20240612 make gc
+docker run --rm -v "$(pwd)":/workspace -w /workspace devkitpro/devkitppc:20240612 make gc-pgo-generate
 ```
 
 ## Output Files
 
 Built executables are placed in the `executables/` directory:
-- `mamegx-wii.dol` - Regular Wii build
-- `mamegx-gc.dol` - Regular GameCube build
-- `mamegx-wii_pgo_gen.dol` - PGO instrumented Wii build
-- `mamegx-gc_pgo_gen.dol` - PGO instrumented GameCube build
-- `mamegx-wii_pgo_use.dol` - PGO optimized Wii build
-- `mamegx-gc_pgo_use.dol` - PGO optimized GameCube build
+- `mamegc-gc.dol` - Regular GameCube build (~150KB)
+- `mamegc-gc_pgo_gen.dol` - PGO instrumented GameCube build (~190KB)
+- `mamegc-gc_pgo_use.dol` - PGO optimized GameCube build (~150KB)
 
 ## Troubleshooting
 
 ### Build Failures
+
 - Ensure Docker has sufficient memory (4GB recommended)
 - Check that all source files are present
-- Try cleaning builds: `./docker-build.sh clean all`
+- Try cleaning builds: `./docker-build.sh clean gc`
 
 ### PGO Issues
+
 - Ensure `pgo_data/` directory exists with profile data before optimized builds
-- Profile data must be collected on the same platform (Wii profiles for Wii builds)
+- Profile data must be collected on GameCube hardware or emulator
+- Use `./docker-build.sh pgo-clean gc` to reset PGO data
 
 ### Permission Issues
+
 - The scripts handle file permissions automatically
 - If you encounter permission errors, ensure Docker can write to the workspace
+- On Linux, you may need to run: `sudo chown -R $USER:$USER .`
 
 ## Development
 
@@ -104,7 +98,15 @@ To modify the build environment:
 2. Edit `docker-compose.yml` for volume/service configuration
 3. Modify build scripts for new commands or platforms
 
+## Performance
+
+Typical build times on modern hardware:
+- Clean build: ~30 seconds
+- Incremental build: ~5 seconds
+- PGO builds: ~35 seconds each
+
 ## See Also
 
-- [PGO_OPTIMIZATION.md](PGO_OPTIMIZATION.md) - Complete PGO documentation
+- [BUILDING.md](../BUILDING.md) - Comprehensive build documentation
 - [README.md](../README.md) - Main project documentation
+- [ROADMAP.md](../ROADMAP.md) - Project roadmap and phases

@@ -30,7 +30,7 @@ ifeq ($(PGO_GENERATE),1)
 	BUILD := $(BUILD)_pgo_gen
 	TARGET := $(TARGET)_pgo_gen
 	PGO_CFLAGS := -fprofile-generate=$(PGO_DIR)
-	PGO_LDFLAGS :=
+	PGO_LDFLAGS := -lgcov
 else ifeq ($(PGO_USE),1)
 	BUILD := $(BUILD)_pgo_use
 	TARGET := $(TARGET)_pgo_use
@@ -52,7 +52,11 @@ LDFLAGS	= -g $(MACHDEP) -Wl,-Map,$(notdir $@).map $(PGO_LDFLAGS)
 #---------------------------------------------------------------------------------
 # Libraries
 #---------------------------------------------------------------------------------
+ifeq ($(PGO_GENERATE),1)
+LIBS := -lgcov -lfat -logc -lm
+else
 LIBS := -lfat -logc -lm
+endif
 LIBDIRS := $(PORTLIBS)
 
 #---------------------------------------------------------------------------------
@@ -99,7 +103,7 @@ $(BUILD):
 
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol
+	@rm -fr ${TARGET} $(BUILD) ${BUILD}_pgo_gen
 
 run:
 	psoload $(OUTPUT).dol

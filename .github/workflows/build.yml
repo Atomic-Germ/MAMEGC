@@ -1,75 +1,92 @@
 name: Build / Release
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+  release:
+    types: [created]
 
 jobs:
   build:
-    name: Build
+    name: Build GameCube
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        image: ["GameCube"]
-    container: ghcr.io/extremscorner/libogc2:latest
+    container: devkitpro/devkitppc:20240612
 
     steps:
-
-    - name: Checkout mamegc repo
+    - name: Checkout repo
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
     - name: Build GameCube
-      if: ${{ matrix.image == 'GameCube' }}
       run: |
         make -f Makefile.gc -j2
 
-    - name: Copy GameCube artifact
-      if: ${{ matrix.image == 'GameCube' }}
+    - name: Copy artifact
       run: |
-        mkdir -p dist/MAMEGC-GameCube
-        cp executables/mamegc-gc.dol dist/MAMEGC-GameCube/
+        mkdir -p dist/MAME2003-GameCube
+        cp executables/mamegc-gc.dol dist/MAME2003-GameCube/
+        cp README.md dist/MAME2003-GameCube/ || true
 
-    - name: Upload GameCube artifact
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
-      if: ${{ matrix.image == 'GameCube' }}
       with:
-        name: MAMEGC-GameCube
-        path: |
-          dist/MAMEGC-GameCube/
+        name: MAME2003-GameCube
+        path: dist/MAME2003-GameCube/
+        retention-days: 30
+
+  build-pgo:
+    name: Build PGO Instrumented (GameCube)
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitppc:20240612
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Build PGO instrumented
+      run: |
+        make -f Makefile.gc pgo-generate -j2
+
+    - name: Upload PGO instrumented build
+      uses: actions/upload-artifact@v4
+      with:
+        name: MAME2003-GameCube-PGO-Instrumented
+        path: executables/mamegc-gc_pgo_gen.dol
+        retention-days: 7
 
   release:
     name: Release
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
 
     steps:
-    - name: Checkout mamegc repo
+    - name: Checkout repo
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    - name: Download Artifacts
+    - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
         path: dist
 
-    - name: Re-zip artifacts
+    - name: Package release
       run: |
-        cd dist/MAMEGC
-        rm -r mamegc/cheats/*
-        rm -r mamegc/roms/*
-        rm -r mamegc/saves/*
-        zip -r ../MAMEGC.zip *
-        cd ../MAMEGC-GameCube
-        zip -r ../MAMEGC-GameCube.zip *
+        cd dist/MAME2003-GameCube
+        zip -r ../MAME2003-GameCube.zip *
 
-    - name: Update Git Tag
+    - name: Update Git tag
       run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
         git tag -f Pre-release
         git push -f origin Pre-release
 
-    - name: Create Release
+    - name: Create release
       uses: ncipollo/release-action@v1
       with:
         prerelease: true
