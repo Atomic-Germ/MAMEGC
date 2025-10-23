@@ -9,15 +9,21 @@
 #include "mame2003_gc.h"
 #include "mame2003/cpu/z80/z80.h"
 #include "mame2003/memory.h"
-#include "z80_test.h"
+#include "drivers/pacman/pacman.h"
+#include "drivers/pacman/pacman_rom.h"
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
 
+/* Global Pac-Man state (for CPU interface) */
+void* g_pacman_state = NULL;
+static pacman_state_t pacman;
+
 int main(int argc, char **argv) {
     mame2003_context_t mame_ctx;
-    int result;
+    int result = 0;
     
+    /* Initialize video */
     VIDEO_Init();
     PAD_Init();
     
@@ -32,14 +38,13 @@ int main(int argc, char **argv) {
     VIDEO_WaitVSync();
     if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
     
-    printf("\n\n");
-    printf("========================================\n");
-    printf("  MAME2003 GameCube Port - v0.2.0\n");
-    printf("========================================\n");
+    /* Print banner */
     printf("\n");
+    printf("================================\n");
+    printf("MAME2003 GameCube Port - v0.3.0\n");
+    printf("================================\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
-    printf("\n");
-    printf("Status: Phase 2 - Core Integration\n");
+    printf("Status: Phase 3 - Pac-Man Driver\n");
     printf("\n");
     
     /* Initialize MAME2003 */
@@ -55,101 +60,84 @@ int main(int argc, char **argv) {
         printf("Initializing memory system...\n");
         memory_init();
         
-        /* Allocate ROM region (16KB) */
-        memory_region_alloc(REGION_CPU1, 16384, "CPU1 ROM");
-        
-        /* Allocate RAM region (16KB) */
-        memory_region_alloc(REGION_USER1, 16384, "RAM");
-        
-        /* Load test program into ROM */
-        printf("\nLoading Z80 test program...\n");
-        memory_load_rom(REGION_CPU1, z80_test_program, Z80_TEST_PROGRAM_SIZE);
-        
-        /* Map ROM to 0x0000-0x3FFF */
-        extern void memory_map_rom(UINT32, UINT32, UINT8*);
-        memory_map_rom(0x0000, 0x3FFF, memory_region_get_base(REGION_CPU1));
-        
-        /* Map RAM to 0x4000-0x7FFF */
-        extern void memory_map_ram(UINT32, UINT32, UINT8*);
-        memory_map_ram(0x4000, 0x7FFF, memory_region_get_base(REGION_USER1));
-        
-        printf("\n");
-        
-        /* Initialize Z80 CPU */
-        printf("Initializing Z80 CPU...\n");
-        z80_init();
-        z80_reset(NULL);
-        
-        /* Manually clear registers to ensure clean state */
-        z80_set_reg(Z80_AF, 0x0000);
-        z80_set_reg(Z80_BC, 0x0000);
-        z80_set_reg(Z80_DE, 0x0000);
-        z80_set_reg(Z80_HL, 0x0000);
-        z80_set_reg(Z80_PC, 0x0000);
-        z80_set_reg(Z80_SP, 0x0000);
-        
-        printf("Z80 CPU initialized!\n");
-        printf("Z80 PC: %04X\n", z80_get_reg(Z80_PC));
-        printf("Z80 SP: %04X\n", z80_get_reg(Z80_SP));
-        
-        /* Dump program memory */
-        printf("\nMemory dump at $0000:\n");
-        memory_dump(0x0000, 16);
-        
-        /* Execute Z80 test program */
-        printf("\n=== Z80 Execution Test ===\n");
-        
-        /* Get initial register values */
-        UINT16 af_initial = z80_get_reg(Z80_AF);
-        UINT8 a_initial = (af_initial >> 8) & 0xFF;
-        
-        UINT16 bc_initial = z80_get_reg(Z80_BC);
-        UINT8 b_initial = (bc_initial >> 8) & 0xFF;
-        
-        printf("Initial: A=%02X B=%02X PC=%04X\n", 
-               a_initial, b_initial, z80_get_reg(Z80_PC));
-        
-        /* Execute the test program */
-        printf("Executing test program...\n");
-        int total_cycles = z80_execute(120);
-        
-        /* Get final register values */
-        UINT16 af_final = z80_get_reg(Z80_AF);
-        UINT8 a_final = (af_final >> 8) & 0xFF;
-        UINT8 f_final = af_final & 0xFF;
-        
-        UINT16 bc_final = z80_get_reg(Z80_BC);
-        UINT8 b_final = (bc_final >> 8) & 0xFF;
-        
-        printf("Final:   A=%02X B=%02X PC=%04X\n", 
-               a_final, b_final, z80_get_reg(Z80_PC));
-        printf("Flags:   F=%02X\n", f_final);
-        printf("Cycles:  %d\n", total_cycles);
-        
-        /* Check if test passed */
-        if (a_final == 0x42) {
-            printf("\n*** Z80 TEST PASSED! ***\n");
-            printf("A register correctly loaded with 0x42\n");
-            printf("Loop executed, B decremented from 0x10 to 0x%02X\n", b_final);
+        /* Initialize Pac-Man driver */
+        printf("\nInitializing Pac-Man driver...\n");
+        if (pacman_init(&pacman) != 0) {
+            printf("ERROR: Failed to initialize Pac-Man\n");
+            result = -1;
         } else {
-            printf("\n*** Test failed - A=%02X (expected 0x42)\n", a_final);
+            /* Set global state for CPU interface */
+            g_pacman_state = &pacman;
+            
+            /* Load test ROM */
+            printf("\nLoading Pac-Man test ROM...\n");
+            memcpy(pacman.rom, pacman_test_rom, PACMAN_TEST_ROM_SIZE);
+            printf("Loaded %u bytes\n", PACMAN_TEST_ROM_SIZE);
+            
+            /* Dump ROM */
+            printf("\nROM dump:\n");
+            for (int i = 0; i < 32; i++) {
+                if (i % 16 == 0) printf("%04X: ", i);
+                printf("%02X ", pacman.rom[i]);
+                if (i % 16 == 15) printf("\n");
+            }
+            
+            /* Initialize Z80 CPU */
+            printf("\nInitializing Z80 CPU...\n");
+            z80_init();
+            z80_reset(NULL);
+            
+            /* Clear all registers */
+            z80_set_reg(Z80_AF, 0x0000);
+            z80_set_reg(Z80_BC, 0x0000);
+            z80_set_reg(Z80_DE, 0x0000);
+            z80_set_reg(Z80_HL, 0x0000);
+            z80_set_reg(Z80_PC, 0x0000);
+            z80_set_reg(Z80_SP, 0x0000);
+            
+            printf("Z80 initialized at PC=%04X\n", z80_get_reg(Z80_PC));
+            
+            /* Run for a few frames */
+            printf("\nRunning Pac-Man for 3 frames...\n");
+            for (int i = 0; i < 3; i++) {
+                printf("Frame %d: ", i + 1);
+                pacman_run_frame(&pacman);
+                printf("PC=%04X ", z80_get_reg(Z80_PC));
+                printf("SP=%04X ", z80_get_reg(Z80_SP));
+                printf("A=%02X\n", (z80_get_reg(Z80_AF) >> 8) & 0xFF);
+            }
+            
+            /* Check video RAM */
+            printf("\nVideo RAM dump (first 32 bytes):\n");
+            for (int i = 0; i < 32; i++) {
+                if (i % 16 == 0) printf("%04X: ", 0x4000 + i);
+                printf("%02X ", pacman.video_ram[i]);
+                if (i % 16 == 15) printf("\n");
+            }
+            
+            /* Check color RAM */
+            printf("\nColor RAM dump (first 16 bytes):\n");
+            for (int i = 0; i < 16; i++) {
+                if (i % 16 == 0) printf("%04X: ", 0x4400 + i);
+                printf("%02X ", pacman.color_ram[i]);
+            }
+            printf("\n");
+            
+            printf("\n*** Pac-Man Test Complete! ***\n");
         }
-        
-        printf("\n");
         
         /* Display memory usage */
         char stats[256];
         mame2003_get_stats(&mame_ctx, stats, sizeof(stats));
-        printf("Stats:\n%s\n", stats);
+        printf("\nStats:\n%s\n", stats);
     } else {
         printf("ERROR: MAME2003 initialization failed!\n");
     }
     
-    printf("\n");
-    printf("Press START to exit.\n");
-    printf("\n");
+    printf("\nPress START to exit.\n");
     
-    while (1) {
+    /* Main loop */
+    while(1) {
         PAD_ScanPads();
         int buttonsDown = PAD_ButtonsDown(0);
         
@@ -161,16 +149,16 @@ int main(int argc, char **argv) {
     }
     
     /* Shutdown MAME2003 */
-    if (result == 0) {
+    if (result == 0 && g_pacman_state) {
         printf("\nShutting down...\n");
         z80_exit();
         printf("Z80 CPU shut down\n");
+        pacman_shutdown(&pacman);
+        printf("Pac-Man driver shut down\n");
         memory_shutdown();
         printf("Memory system shut down\n");
         mame2003_shutdown(&mame_ctx);
     }
-    
-    printf("Goodbye!\n");
     
     return 0;
 }
