@@ -22,6 +22,31 @@ static void init_video()
         VIDEO_WaitVSync();
 }
 
+static void fs_demo()
+{
+    const char* base = fs_app_base_path();
+    if (!base) {
+        printf("No FAT device found.\n");
+        return;
+    }
+
+    char p[512];
+    // Ensure base subfolders
+    fs_path_join(p, sizeof(p), base, "config"); fs_mkdir_p(p);
+    fs_path_join(p, sizeof(p), base, "roms");   fs_mkdir_p(p);
+    fs_path_join(p, sizeof(p), base, "saves");  fs_mkdir_p(p);
+
+    // List ROMs folder (print up to 10 entries)
+    fs_dir_entry ents[64];
+    fs_path_join(p, sizeof(p), base, "roms");
+    int n = fs_list_dir(p, ents, (int)(sizeof(ents)/sizeof(ents[0])));
+    printf("ROMs in %s: %d\n", p, n);
+    int max_show = n < 10 ? n : 10;
+    for (int i = 0; i < max_show; ++i) {
+        printf(" %c %s\n", ents[i].is_dir ? 'd' : '-', ents[i].name);
+    }
+}
+
 int main(int argc, char** argv)
 {
     init_video();
@@ -34,6 +59,7 @@ int main(int argc, char** argv)
     printf("- Conventions modeled after snes9xGC\n");
     const char* base = fs_app_base_path();
     printf("- Base path: %s\n", base ? base : "<none>");
+    fs_demo();
     printf("- Press START to exit.\n\n");
 
     while (1)
