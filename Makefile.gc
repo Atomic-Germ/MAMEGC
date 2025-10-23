@@ -15,9 +15,9 @@ include $(DEVKITPRO)/devkitPPC/gamecube_rules
 TARGET		:= mamegc-gc
 TARGETDIR	:= executables
 BUILD		:= build_gc
-SOURCES		:= source
+SOURCES		:= source source/mame2003
 DATA		:=
-INCLUDES	:= source
+INCLUDES	:= source source/mame2003
 
 #---------------------------------------------------------------------------------
 # PGO support (scaffold, no-op until used)
@@ -45,7 +45,9 @@ endif
 # Compiler/Linker flags
 #---------------------------------------------------------------------------------
 CFLAGS	= -g -O3 -Wall $(MACHDEP) $(INCLUDE) $(PGO_CFLAGS) \
-		-Wno-unused-parameter -Wno-unused-variable -Wno-missing-field-initializers
+		-Wno-unused-parameter -Wno-unused-variable -Wno-missing-field-initializers \
+		-Wno-pointer-sign -Wno-format \
+		-DMAME_GC -DLSB_FIRST
 CXXFLAGS = $(CFLAGS)
 LDFLAGS	= -g $(MACHDEP) -Wl,-Map,$(notdir $@).map $(PGO_LDFLAGS)
 
