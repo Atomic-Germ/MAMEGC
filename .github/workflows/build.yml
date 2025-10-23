@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        image: ["Wii", "GameCube"]
+        image: GameCube
     container: ghcr.io/extremscorner/libogc2:latest
 
     steps:
@@ -20,32 +20,6 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-
-    - name: Build Wii
-      if: ${{ matrix.image == 'Wii' }}
-      run: |
-        make gc
-
-    - name: Copy Wii artifacts
-      if: ${{ matrix.image == 'Wii' }}
-      run: |
-        mkdir -p dist/MAMEGC/apps/mamegc
-        mkdir -p dist/MAMEGC/mamegc/roms
-        mkdir dist/MAMEGC/mamegc/cheats
-        mkdir dist/MAMEGC/mamegc/saves
-        touch dist/MAMEGC/mamegc/roms/romsdir
-        touch dist/MAMEGC/mamegc/cheats/cheatsdir
-        touch dist/MAMEGC/mamegc/saves/savesdir
-        cp hbc/* dist/MAMEGC/apps/mamegc/
-        cp executables/mamegc-wii.dol dist/MAMEGC/apps/mamegc/boot.dol
-
-    - name: Upload Wii artifacts
-      uses: actions/upload-artifact@v4
-      if: ${{ matrix.image == 'Wii' }}
-      with:
-        name: MAMEGC
-        path: |
-          dist/MAMEGC/
 
     - name: Build GameCube
       if: ${{ matrix.image == 'GameCube' }}
