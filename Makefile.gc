@@ -1,0 +1,142 @@
+#---------------------------------------------------------------------------------
+# Clear built-in rules
+#---------------------------------------------------------------------------------
+.SUFFIXES:
+#---------------------------------------------------------------------------------
+ifeq ($(strip $(DEVKITPPC)),)
+$(error "Please set DEVKITPPC in your environment. export DEVKITPPC=<path to>devkitPPC")
+endif
+
+include $(DEVKITPRO)/devkitPPC/gamecube_rules
+
+#---------------------------------------------------------------------------------
+# TARGET/BUILD/SOURCES/INCLUDES
+#---------------------------------------------------------------------------------
+TARGET		:= mamegc-gc
+TARGETDIR	:= executables
+BUILD		:= build_gc
+SOURCES		:= source
+DATA		:=
+INCLUDES	:= source
+
+#---------------------------------------------------------------------------------
+# PGO support (scaffold, no-op until used)
+#---------------------------------------------------------------------------------
+PGO_GENERATE ?= 0
+PGO_USE      ?= 0
+PGO_DIR      := pgo_data
+
+ifeq ($(PGO_GENERATE),1)
+	BUILD := $(BUILD)_pgo_gen
+	TARGET := $(TARGET)_pgo_gen
+	PGO_CFLAGS := -fprofile-generate=$(PGO_DIR)
+	PGO_LDFLAGS :=
+else ifeq ($(PGO_USE),1)
+	BUILD := $(BUILD)_pgo_use
+	TARGET := $(TARGET)_pgo_use
+	PGO_CFLAGS := -fprofile-use=$(PGO_DIR)
+	PGO_LDFLAGS :=
+else
+	PGO_CFLAGS :=
+	PGO_LDFLAGS :=
+endif
+
+#---------------------------------------------------------------------------------
+# Compiler/Linker flags
+#---------------------------------------------------------------------------------
+CFLAGS	= -g -O3 -Wall $(MACHDEP) $(INCLUDE) $(PGO_CFLAGS) \
+		-Wno-unused-parameter -Wno-unused-variable -Wno-missing-field-initializers
+CXXFLAGS = $(CFLAGS)
+LDFLAGS	= -g $(MACHDEP) -Wl,-Map,$(notdir $@).map $(PGO_LDFLAGS)
+
+#---------------------------------------------------------------------------------
+# Libraries
+#---------------------------------------------------------------------------------
+LIBS := -logc -lm
+LIBDIRS := $(PORTLIBS)
+
+#---------------------------------------------------------------------------------
+# Build system (from devkitPro templates; mirrors snes9xGC flow)
+#---------------------------------------------------------------------------------
+ifneq ($(BUILD),$(notdir $(CURDIR)))
+
+export OUTPUT := $(CURDIR)/$(TARGETDIR)/$(TARGET)
+export VPATH  := $(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
+				 $(foreach dir,$(DATA),$(CURDIR)/$(dir))
+export DEPSDIR := $(CURDIR)/$(BUILD)
+
+CFILES		:= $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+CPPFILES	:= $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
+sFILES		:= $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
+SFILES		:= $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.S)))
+BINFILES	:= $(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.png)))
+
+ifeq ($(strip $(CPPFILES)),)
+	export LD := $(CC)
+else
+	export LD := $(CXX)
+endif
+
+export OFILES_BIN     := $(addsuffix .o,$(BINFILES))
+export OFILES_SOURCES := $(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(sFILES:.s=.o) $(SFILES:.S=.o)
+export OFILES         := $(OFILES_BIN) $(OFILES_SOURCES)
+
+export HFILES := $(addsuffix .h,$(subst .,_,$(BINFILES)))
+
+export INCLUDE := $(foreach dir,$(INCLUDES), -iquote $(CURDIR)/$(dir)) \
+				  $(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+				  -I$(CURDIR)/$(BUILD) \
+				  -I$(LIBOGC_INC)
+
+export LIBPATHS := -L$(LIBOGC_LIB) $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
+
+.PHONY: $(BUILD) clean run reload pgo-generate pgo-optimize pgo-clean
+
+$(BUILD):
+	@[ -d $@ ] || mkdir -p $@
+	@[ -d $(TARGETDIR) ] || mkdir -p $(TARGETDIR)
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile.gc
+
+clean:
+	@echo clean ...
+	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol
+
+run:
+	psoload $(OUTPUT).dol
+
+reload:
+	psoload -r $(OUTPUT).dol
+
+# PGO targets
+pgo-generate:
+	@echo "Building PGO instrumented version for profile generation..."
+	$(MAKE) PGO_GENERATE=1 clean
+	$(MAKE) PGO_GENERATE=1
+
+pgo-optimize:
+	@echo "Building PGO optimized version using profile data..."
+	$(MAKE) PGO_USE=1 clean
+	$(MAKE) PGO_USE=1
+
+pgo-clean:
+	@echo "Cleaning PGO data and builds..."
+	@rm -fr build_gc_pgo_gen build_gc_pgo_use $(PGO_DIR)
+	@rm -f executables/$(TARGET)_pgo_gen.dol executables/$(TARGET)_pgo_use.dol
+
+else
+
+DEPENDS := $(OFILES:.o=.d)
+
+$(OUTPUT).dol: $(OUTPUT).elf
+$(OUTPUT).elf: $(OFILES)
+
+$(OFILES_SOURCES) : $(HFILES)
+
+# Binary data example rule (png)
+%.png.o %_png.h : %.png
+	@echo $(notdir $<)
+	$(bin2o)
+
+-include $(DEPENDS)
+
+endif
