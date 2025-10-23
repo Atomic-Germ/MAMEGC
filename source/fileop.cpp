@@ -54,8 +54,8 @@ bool fs_mount_all_fat(void) {
         const device_map* d = dev_by_id(i);
         if (!d) continue;
         if (s_mounted[i]) { any = true; continue; }
-        DISC_INTERFACE* disc = *d->disc;
-        if (disc->startup(disc) && fatMountSimple(d->name, disc)) {
+        const DISC_INTERFACE* disc = *d->disc;
+        if (disc->startup() && fatMountSimple(d->name, disc)) {
             s_mounted[i] = true;
             any = true;
         }
@@ -83,8 +83,8 @@ bool fs_change_interface_device(int device) {
     const device_map* d = dev_by_id(device);
     if (!d) return false;
     if (s_mounted[device]) return true;
-    DISC_INTERFACE* disc = *d->disc;
-    if (disc->startup(disc) && fatMountSimple(d->name, disc)) {
+    const DISC_INTERFACE* disc = *d->disc;
+    if (disc->startup() && fatMountSimple(d->name, disc)) {
         s_mounted[device] = true;
         return true;
     }
