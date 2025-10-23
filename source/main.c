@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <malloc.h>
 #include <gccore.h>
 #include <ogc/video.h>
 #include <ogc/video_types.h>
@@ -11,6 +12,7 @@
 #include "mame2003/memory.h"
 #include "drivers/pacman/pacman.h"
 #include "drivers/pacman/pacman_rom.h"
+#include "video/video.h"
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
@@ -18,6 +20,10 @@ static GXRModeObj *rmode = NULL;
 /* Global Pac-Man state (for CPU interface) */
 void* g_pacman_state = NULL;
 static pacman_state_t pacman;
+
+/* Video system */
+static video_state_t video;
+static u32* video_framebuffer = NULL;
 
 int main(int argc, char **argv) {
     mame2003_context_t mame_ctx;
@@ -97,33 +103,61 @@ int main(int argc, char **argv) {
             
             printf("Z80 initialized at PC=%04X\n", z80_get_reg(Z80_PC));
             
-            /* Run for a few frames */
-            printf("\nRunning Pac-Man for 3 frames...\n");
-            for (int i = 0; i < 3; i++) {
-                printf("Frame %d: ", i + 1);
-                pacman_run_frame(&pacman);
-                printf("PC=%04X ", z80_get_reg(Z80_PC));
-                printf("SP=%04X ", z80_get_reg(Z80_SP));
-                printf("A=%02X\n", (z80_get_reg(Z80_AF) >> 8) & 0xFF);
-            }
+            /* Initialize video system */
+            printf("\nInitializing video system...\n");
             
-            /* Check video RAM */
-            printf("\nVideo RAM dump (first 32 bytes):\n");
-            for (int i = 0; i < 32; i++) {
-                if (i % 16 == 0) printf("%04X: ", 0x4000 + i);
-                printf("%02X ", pacman.video_ram[i]);
-                if (i % 16 == 15) printf("\n");
+            /* Allocate framebuffer (640x480 for GameCube) */
+            video_framebuffer = (u32*)memalign(32, 640 * 480 * sizeof(u32));
+            if (!video_framebuffer) {
+                printf("ERROR: Failed to allocate video framebuffer\n");
+                result = -1;
+            } else {
+                if (video_init(&video, video_framebuffer, 640, 480) != 0) {
+                    printf("ERROR: Failed to initialize video\n");
+                    result = -1;
+                } else {
+                    printf("Video system initialized!\n");
+                    
+                    /* Clear screen to black */
+                    color_t black = {0, 0, 0, 255};
+                    video_clear(&video, black);
+                    
+                    printf("\nRunning Pac-Man for 3 frames...\n");
+                    for (int i = 0; i < 3; i++) {
+                        printf("Frame %d: ", i + 1);
+                        pacman_run_frame(&pacman);
+                        printf("PC=%04X ", z80_get_reg(Z80_PC));
+                        printf("SP=%04X ", z80_get_reg(Z80_SP));
+                        printf("A=%02X\n", (z80_get_reg(Z80_AF) >> 8) & 0xFF);
+                    }
+                    
+                    /* Render tiles to screen */
+                    printf("\nRendering tiles...\n");
+                    video_begin_frame(&video);
+                    video_render_tiles(&video, pacman.video_ram, pacman.color_ram, 0);
+                    video_end_frame(&video);
+                    printf("Rendered frame %u\n", video.frame_count);
+                    
+                    /* Check video RAM */
+                    printf("\nVideo RAM dump (first 32 bytes):\n");
+                    for (int i = 0; i < 32; i++) {
+                        if (i % 16 == 0) printf("%04X: ", 0x4000 + i);
+                        printf("%02X ", pacman.video_ram[i]);
+                        if (i % 16 == 15) printf("\n");
+                    }
+                    
+                    /* Check color RAM */
+                    printf("\nColor RAM dump (first 16 bytes):\n");
+                    for (int i = 0; i < 16; i++) {
+                        if (i % 16 == 0) printf("%04X: ", 0x4400 + i);
+                        printf("%02X ", pacman.color_ram[i]);
+                    }
+                    printf("\n");
+                    
+                    printf("\n*** Pac-Man Test Complete! ***\n");
+                    printf("Video rendered to framebuffer\n");
+                }
             }
-            
-            /* Check color RAM */
-            printf("\nColor RAM dump (first 16 bytes):\n");
-            for (int i = 0; i < 16; i++) {
-                if (i % 16 == 0) printf("%04X: ", 0x4400 + i);
-                printf("%02X ", pacman.color_ram[i]);
-            }
-            printf("\n");
-            
-            printf("\n*** Pac-Man Test Complete! ***\n");
         }
         
         /* Display memory usage */
@@ -151,6 +185,12 @@ int main(int argc, char **argv) {
     /* Shutdown MAME2003 */
     if (result == 0 && g_pacman_state) {
         printf("\nShutting down...\n");
+        video_shutdown(&video);
+        printf("Video system shut down\n");
+        if (video_framebuffer) {
+            free(video_framebuffer);
+            video_framebuffer = NULL;
+        }
         z80_exit();
         printf("Z80 CPU shut down\n");
         pacman_shutdown(&pacman);

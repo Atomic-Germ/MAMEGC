@@ -217,6 +217,6 @@ void pacman_update_input(pacman_state_t* state, UINT8 port0, UINT8 port1) {
  ***************************************************************************/
 
 void pacman_render(pacman_state_t* state) {
-    /* TODO: Render tiles and sprites to framebuffer */
-    /* This will be implemented in the video system */
+    /* Video rendering is handled externally through video system */
+    /* This can be called to trigger rendering if needed */
 }

@@ -15,9 +15,9 @@ include $(DEVKITPRO)/devkitPPC/gamecube_rules
 TARGET		:= mamegc-gc
 TARGETDIR	:= executables
 BUILD		:= build_gc
-SOURCES		:= source source/mame2003 source/mame2003/cpu/z80 source/drivers/pacman
+SOURCES		:= source source/mame2003 source/mame2003/cpu/z80 source/drivers/pacman source/video
 DATA		:=
-INCLUDES	:= source source/mame2003 source/mame2003/cpu/z80 source/drivers/pacman
+INCLUDES	:= source source/mame2003 source/mame2003/cpu/z80 source/drivers/pacman source/video
 
 #---------------------------------------------------------------------------------
 # PGO support (scaffold, no-op until used)
