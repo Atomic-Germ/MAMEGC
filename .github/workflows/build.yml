@@ -1,0 +1,109 @@
+name: Build / Release
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: ["Wii", "GameCube"]
+    container: ghcr.io/extremscorner/libogc2:latest
+
+    steps:
+    - name: Install packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends gcc gcc-mingw-w64-i686 libc6-dev libc6-i386 p7zip-full xorriso
+    - name: Checkout mamegc repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Build Wii
+      if: ${{ matrix.image == 'Wii' }}
+      run: |
+        make gc
+
+    - name: Copy Wii artifacts
+      if: ${{ matrix.image == 'Wii' }}
+      run: |
+        mkdir -p dist/MAMEGC/apps/mamegc
+        mkdir -p dist/MAMEGC/mamegc/roms
+        mkdir dist/MAMEGC/mamegc/cheats
+        mkdir dist/MAMEGC/mamegc/saves
+        touch dist/MAMEGC/mamegc/roms/romsdir
+        touch dist/MAMEGC/mamegc/cheats/cheatsdir
+        touch dist/MAMEGC/mamegc/saves/savesdir
+        cp hbc/* dist/MAMEGC/apps/mamegc/
+        cp executables/mamegc-wii.dol dist/MAMEGC/apps/mamegc/boot.dol
+
+    - name: Upload Wii artifacts
+      uses: actions/upload-artifact@v4
+      if: ${{ matrix.image == 'Wii' }}
+      with:
+        name: MAMEGC
+        path: |
+          dist/MAMEGC/
+
+    - name: Build GameCube
+      if: ${{ matrix.image == 'GameCube' }}
+      run: |
+        make -f Makefile.gc -j2
+
+    - name: Copy GameCube artifact
+      if: ${{ matrix.image == 'GameCube' }}
+      run: |
+        mkdir -p dist/MAMEGC-GameCube
+        cp executables/mamegc-gc.dol dist/MAMEGC-GameCube/
+
+    - name: Upload GameCube artifact
+      uses: actions/upload-artifact@v4
+      if: ${{ matrix.image == 'GameCube' }}
+      with:
+        name: MAMEGC-GameCube
+        path: |
+          dist/MAMEGC-GameCube/
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/master'
+
+    steps:
+    - name: Checkout mamegc repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: dist
+
+    - name: Re-zip artifacts
+      run: |
+        cd dist/MAMEGC
+        rm -r mamegc/cheats/*
+        rm -r mamegc/roms/*
+        rm -r mamegc/saves/*
+        zip -r ../MAMEGC.zip *
+        cd ../MAMEGC-GameCube
+        zip -r ../MAMEGC-GameCube.zip *
+
+    - name: Update Git Tag
+      run: |
+        git tag -f Pre-release
+        git push -f origin Pre-release
+
+    - name: Create Release
+      uses: ncipollo/release-action@v1
+      with:
+        prerelease: true
+        allowUpdates: true
+        removeArtifacts: true
+        replacesArtifacts: false
+        tag: Pre-release
+        artifacts: "dist/*.zip"
