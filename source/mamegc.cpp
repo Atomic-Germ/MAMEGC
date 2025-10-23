@@ -1,6 +1,7 @@
 #include <gccore.h>
 #include <ogcsys.h>
 #include <stdio.h>
+#include "fileop.h"
 
 static void* xfb = nullptr;
 static GXRModeObj* rmode = nullptr;
@@ -26,8 +27,13 @@ int main(int argc, char** argv)
     init_video();
     PAD_Init();
 
+    // Mount available FAT devices (carda:/, cardb:/, port2:/)
+    fs_mount_all_fat();
+
     printf("mameGC skeleton\n");
     printf("- Conventions modeled after snes9xGC\n");
+    const char* base = fs_app_base_path();
+    printf("- Base path: %s\n", base ? base : "<none>");
     printf("- Press START to exit.\n\n");
 
     while (1)
