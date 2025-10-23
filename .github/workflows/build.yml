@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        image: GameCube
+        image: ["GameCube"]
     container: ghcr.io/extremscorner/libogc2:latest
 
     steps:
