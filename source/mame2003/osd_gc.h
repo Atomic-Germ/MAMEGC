@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,6 +84,15 @@ typedef void* osd_file;
 void* osd_malloc(size_t size);
 void* osd_calloc(size_t count, size_t size);
 void  osd_free(void* ptr);
+
+/* Memory usage tracking */
+size_t osd_get_memory_usage(void);
+size_t osd_get_peak_memory_usage(void);
+
+/* SD Card functions */
+bool osd_sd_available(void);
+const char* osd_get_sd_mount(void);
+bool osd_test_sd_access(void);
 
 /***************************************************************************
  * Timing
