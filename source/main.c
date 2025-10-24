@@ -15,6 +15,7 @@
 #include "video/video.h"
 #include "input.h"
 #include "rom_scanner.h"
+#include "rom_loader.h"
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
@@ -374,6 +375,39 @@ int main(int argc, char **argv) {
                         }
                     } else {
                         printf("ROM scanner failed - no SD2GC available\n");
+                    }
+                    
+                    /* Test ROM loading */
+                    printf("\n=== ROM Loading Test ===\n");
+                    if (rom_loader_init()) {
+                        /* Check if we found any valid ROM sets */
+                        if (rom_scanner_init()) {
+                            rom_set_t rom_sets[MAX_ROM_SETS];
+                            int rom_count = scan_for_rom_sets(rom_sets, MAX_ROM_SETS);
+                            
+                            if (rom_count > 0) {
+                                /* Find first valid Pac-Man ROM set */
+                                for (int i = 0; i < rom_count; i++) {
+                                    if (rom_sets[i].valid && is_pacman_rom_set(rom_sets[i].directory)) {
+                                        printf("Loading Pac-Man ROM set...\n");
+                                        
+                                        if (load_pacman_roms(&rom_sets[i])) {
+                                            printf("ROM loading: SUCCESS\n");
+                                            printf("Ready to start game execution\n");
+                                        } else {
+                                            printf("ROM loading: FAILED\n");
+                                        }
+                                        break;
+                                    }
+                                }
+                            } else {
+                                printf("No ROM sets found - skipping ROM loading test\n");
+                            }
+                        } else {
+                            printf("ROM scanner not available - skipping ROM loading test\n");
+                        }
+                    } else {
+                        printf("ROM loader initialization failed\n");
                     }
                     
                     /* Check video RAM */
