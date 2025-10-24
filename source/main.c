@@ -14,6 +14,7 @@
 #include "drivers/pacman/pacman_rom.h"
 #include "video/video.h"
 #include "input.h"
+#include "rom_scanner.h"
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
@@ -348,6 +349,32 @@ int main(int argc, char **argv) {
                     }
                     
                     printf("\nInput test complete!\n");
+                    
+                    /* Test ROM scanning */
+                    printf("\n=== ROM Scanner Test ===\n");
+                    if (rom_scanner_init()) {
+                        rom_set_t rom_sets[MAX_ROM_SETS];
+                        int rom_count = scan_for_rom_sets(rom_sets, MAX_ROM_SETS);
+                        
+                        if (rom_count > 0) {
+                            print_rom_sets(rom_sets, rom_count);
+                            
+                            /* Find Pac-Man ROM set for next phase */
+                            for (int i = 0; i < rom_count; i++) {
+                                if (rom_sets[i].valid && is_pacman_rom_set(rom_sets[i].directory)) {
+                                    printf("Pac-Man ROM set ready at: %s\n", rom_sets[i].directory);
+                                    break;
+                                }
+                            }
+                        } else {
+                            printf("No valid ROM sets found\n");
+                            printf("Create directory: %s/roms/pacman/\n", 
+                                   osd_sd_available() ? osd_get_sd_mount() : "[SD2GC not available]");
+                            printf("Place Pac-Man ROM files in that directory\n");
+                        }
+                    } else {
+                        printf("ROM scanner failed - no SD2GC available\n");
+                    }
                     
                     /* Check video RAM */
                     printf("\nVideo RAM dump (first 32 bytes):\n");
