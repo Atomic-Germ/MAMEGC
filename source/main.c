@@ -13,6 +13,7 @@
 #include "drivers/pacman/pacman.h"
 #include "drivers/pacman/pacman_rom.h"
 #include "video/video.h"
+#include "input.h"
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
@@ -103,11 +104,15 @@ int main(int argc, char **argv) {
     /* Print banner */
     printf("\n");
     printf("================================\n");
-    printf("MAME2003 GameCube Port - v0.3.0\n");
+    printf("MAME2003 GameCube Port - v0.4.0\n");
     printf("================================\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
-    printf("Status: Phase 3 - Pac-Man Driver\n");
+    printf("Status: Phase 4 - Input System\n");
     printf("\n");
+    
+    /* Initialize input system */
+    printf("Initializing input system...\n");
+    input_init();
     
     /* Initialize MAME2003 */
     printf("Initializing MAME2003...\n");
@@ -274,19 +279,75 @@ int main(int argc, char **argv) {
                     VIDEO_WaitVSync();
                     printf("Display updated!\n");
                     
-                    printf("\n*** Press START to continue ***\n");
+                    printf("\n*** Input Test Mode ***\n");
+                    printf("Press buttons to test input\n");
+                    printf("Press START twice to continue\n\n");
                     
-                    /* Wait for START button */
-                    while(1) {
-                        PAD_ScanPads();
-                        int buttonsDown = PAD_ButtonsDown(0);
-                        if (buttonsDown & PAD_BUTTON_START) {
-                            break;
+                    /* Input test loop */
+                    int start_count = 0;
+                    while(start_count < 2) {
+                        input_update();
+                        
+                        /* Check for any input */
+                        int has_input = 0;
+                        for (int i = 0; i < 2; i++) {
+                            if (input_state[i].buttons != 0) {
+                                has_input = 1;
+                                break;
+                            }
                         }
+                        
+                        if (has_input) {
+                            printf("\033[2J\033[H"); /* Clear screen */
+                            printf("=== Input State ===\n\n");
+                            
+                            for (int i = 0; i < 2; i++) {
+                                if (input_state[i].buttons == 0 && 
+                                    input_state[i].analog_x == 0 && 
+                                    input_state[i].analog_y == 0)
+                                    continue;
+                                
+                                printf("Player %d: ", i + 1);
+                                
+                                if (input_button_held(i, INPUT_UP)) printf("UP ");
+                                if (input_button_held(i, INPUT_DOWN)) printf("DOWN ");
+                                if (input_button_held(i, INPUT_LEFT)) printf("LEFT ");
+                                if (input_button_held(i, INPUT_RIGHT)) printf("RIGHT ");
+                                if (input_button_held(i, INPUT_BUTTON1)) printf("A ");
+                                if (input_button_held(i, INPUT_BUTTON2)) printf("B ");
+                                if (input_button_held(i, INPUT_BUTTON3)) printf("X ");
+                                if (input_button_held(i, INPUT_BUTTON4)) printf("Y ");
+                                if (input_button_held(i, INPUT_BUTTON5)) printf("L ");
+                                if (input_button_held(i, INPUT_BUTTON6)) printf("R ");
+                                if (input_button_held(i, INPUT_COIN)) printf("COIN ");
+                                
+                                int8_t x, y;
+                                input_get_analog(i, &x, &y);
+                                if (x != 0 || y != 0) {
+                                    printf("Analog(%d,%d) ", x, y);
+                                }
+                                
+                                if (input_button_held(i, INPUT_START)) {
+                                    printf("START ");
+                                }
+                                
+                                printf("\n");
+                            }
+                            
+                            printf("\nPress START twice to continue\n");
+                            printf("START count: %d/2\n", start_count);
+                        }
+                        
+                        /* Count START presses */
+                        if (input_button_pressed(0, INPUT_START)) {
+                            start_count++;
+                            printf("\nSTART pressed (%d/2)\n", start_count);
+                        }
+                        
                         VIDEO_WaitVSync();
                     }
                     
-                    printf("Button pressed, continuing...\n");
+                    printf("\nInput test complete!\n");
                     
                     /* Check video RAM */
                     printf("\nVideo RAM dump (first 32 bytes):\n");
@@ -322,10 +383,9 @@ int main(int argc, char **argv) {
     
     /* Main loop */
     while(1) {
-        PAD_ScanPads();
-        int buttonsDown = PAD_ButtonsDown(0);
+        input_update();
         
-        if (buttonsDown & PAD_BUTTON_START) {
+        if (input_button_pressed(0, INPUT_START)) {
             break;
         }
         
