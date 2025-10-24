@@ -25,6 +25,62 @@ static pacman_state_t pacman;
 static video_state_t video;
 static u32* video_framebuffer = NULL;
 
+/* Copy rendered framebuffer to GX framebuffer */
+static void copy_to_screen(void) {
+    if (!video_framebuffer || !xfb) return;
+    
+    /* Convert RGBA8888 to YUV422 (YUY2) for GX framebuffer */
+    u32* dst = (u32*)xfb;
+    int width = rmode->fbWidth;
+    int height = rmode->xfbHeight;
+    
+    /* YUV422 stores pairs of pixels: Y0 U Y1 V */
+    for (int y = 0; y < height && y < 480; y++) {
+        for (int x = 0; x < width && x < 640; x += 2) {
+            /* Get two adjacent pixels */
+            u32 rgba0 = video_framebuffer[y * 640 + x];
+            u32 rgba1 = video_framebuffer[y * 640 + x + 1];
+            
+            /* Extract RGB for pixel 0 */
+            u8 r0 = (rgba0 >> 24) & 0xFF;
+            u8 g0 = (rgba0 >> 16) & 0xFF;
+            u8 b0 = (rgba0 >> 8) & 0xFF;
+            
+            /* Extract RGB for pixel 1 */
+            u8 r1 = (rgba1 >> 24) & 0xFF;
+            u8 g1 = (rgba1 >> 16) & 0xFF;
+            u8 b1 = (rgba1 >> 8) & 0xFF;
+            
+            /* RGB to YUV conversion (ITU-R BT.601) */
+            /* Y = 0.299R + 0.587G + 0.114B */
+            /* U = -0.147R - 0.289G + 0.436B + 128 */
+            /* V = 0.615R - 0.515G - 0.100B + 128 */
+            
+            int y0 = (77 * r0 + 150 * g0 + 29 * b0) >> 8;
+            int y1 = (77 * r1 + 150 * g1 + 29 * b1) >> 8;
+            
+            /* Average UV for both pixels */
+            int r_avg = (r0 + r1) >> 1;
+            int g_avg = (g0 + g1) >> 1;
+            int b_avg = (b0 + b1) >> 1;
+            
+            int u = ((-38 * r_avg - 74 * g_avg + 112 * b_avg) >> 8) + 128;
+            int v = ((112 * r_avg - 94 * g_avg - 18 * b_avg) >> 8) + 128;
+            
+            /* Clamp values */
+            if (y0 < 0) y0 = 0; if (y0 > 255) y0 = 255;
+            if (y1 < 0) y1 = 0; if (y1 > 255) y1 = 255;
+            if (u < 0) u = 0; if (u > 255) u = 255;
+            if (v < 0) v = 0; if (v > 255) v = 255;
+            
+            /* Pack as YUY2: Y0 U Y1 V */
+            dst[(y * width + x) / 2] = (y0 << 24) | (u << 16) | (y1 << 8) | v;
+        }
+    }
+    
+    DCFlushRange(xfb, rmode->fbWidth * rmode->xfbHeight * 2);
+}
+
 int main(int argc, char **argv) {
     mame2003_context_t mame_ctx;
     int result = 0;
@@ -107,11 +163,17 @@ int main(int argc, char **argv) {
             printf("\nInitializing video system...\n");
             
             /* Allocate framebuffer (640x480 for GameCube) */
+            printf("Allocating video framebuffer...\n");
+            printf("  Size: 640×480×4 = %u bytes\n", 640 * 480 * 4);
+            
             video_framebuffer = (u32*)memalign(32, 640 * 480 * sizeof(u32));
             if (!video_framebuffer) {
                 printf("ERROR: Failed to allocate video framebuffer\n");
                 result = -1;
             } else {
+                printf("  Allocated at: %p\n", video_framebuffer);
+                printf("  Alignment: OK (%p & 31 = %d)\n", 
+                       video_framebuffer, ((u32)video_framebuffer) & 31);
                 if (video_init(&video, video_framebuffer, 640, 480) != 0) {
                     printf("ERROR: Failed to initialize video\n");
                     result = -1;
@@ -131,12 +193,100 @@ int main(int argc, char **argv) {
                         printf("A=%02X\n", (z80_get_reg(Z80_AF) >> 8) & 0xFF);
                     }
                     
-                    /* Render tiles to screen */
                     printf("\nRendering tiles...\n");
+                    printf("Framebuffer: %p\n", video_framebuffer);
+                    printf("FB size: %dx%d = %d pixels\n", 640, 480, 640*480);
+                    
+                    /* First, draw a test pattern to verify framebuffer works */
+                    printf("Drawing test rectangles...\n");
+                    
+                    /* Clear to black */
+                    memset(video_framebuffer, 0, 640 * 480 * sizeof(u32));
+                    
+                    /* Draw some colored rectangles to verify rendering */
+                    /* Red rectangle at top-left */
+                    for (int y = 0; y < 50; y++) {
+                        for (int x = 0; x < 100; x++) {
+                            video_framebuffer[y * 640 + x] = 0xFF0000FF; /* Red */
+                        }
+                    }
+                    
+                    /* Green rectangle next to it */
+                    for (int y = 0; y < 50; y++) {
+                        for (int x = 100; x < 200; x++) {
+                            video_framebuffer[y * 640 + x] = 0x00FF00FF; /* Green */
+                        }
+                    }
+                    
+                    /* Blue rectangle next to that */
+                    for (int y = 0; y < 50; y++) {
+                        for (int x = 200; x < 300; x++) {
+                            video_framebuffer[y * 640 + x] = 0x0000FFFF; /* Blue */
+                        }
+                    }
+                    
+                    /* White rectangle */
+                    for (int y = 0; y < 50; y++) {
+                        for (int x = 300; x < 400; x++) {
+                            video_framebuffer[y * 640 + x] = 0xFFFFFFFF; /* White */
+                        }
+                    }
+                    
+                    printf("Test rectangles drawn!\n");
+                    
+                    /* Now render actual tiles */
+                    printf("\nRendering Pac-Man tiles...\n");
                     video_begin_frame(&video);
                     video_render_tiles(&video, pacman.video_ram, pacman.color_ram, 0);
                     video_end_frame(&video);
+                    
                     printf("Rendered frame %u\n", video.frame_count);
+                    printf("Tile area: 28x36 tiles = %d tiles total\n", 28*36);
+                    printf("Display area: 224x288 pixels (centered at %d,%d)\n", 
+                           (640-224)/2, (480-288)/2);
+                    
+                    /* Sample a few pixels to verify rendering */
+                    printf("\nFramebuffer samples:\n");
+                    for (int i = 0; i < 5; i++) {
+                        u32 pixel = video_framebuffer[i];
+                        printf("  Pixel %d: %08X\n", i, pixel);
+                    }
+                    
+                    printf("\nCopying to screen...\n");
+                    
+                    /* Debug: Show what we're converting */
+                    printf("Sample conversions:\n");
+                    for (int i = 0; i < 3; i++) {
+                        u32 rgba = video_framebuffer[i];
+                        u8 r = (rgba >> 24) & 0xFF;
+                        u8 g = (rgba >> 16) & 0xFF;
+                        u8 b = (rgba >> 8) & 0xFF;
+                        int y = (77 * r + 150 * g + 29 * b) >> 8;
+                        int u = ((-38 * r - 74 * g + 112 * b) >> 8) + 128;
+                        int v = ((112 * r - 94 * g - 18 * b) >> 8) + 128;
+                        printf("  Pixel %d: RGB(%02X,%02X,%02X) -> YUV(%d,%d,%d)\n", 
+                               i, r, g, b, y, u, v);
+                    }
+                    
+                    copy_to_screen();
+                    VIDEO_SetNextFramebuffer(xfb);
+                    VIDEO_Flush();
+                    VIDEO_WaitVSync();
+                    printf("Display updated!\n");
+                    
+                    printf("\n*** Press START to continue ***\n");
+                    
+                    /* Wait for START button */
+                    while(1) {
+                        PAD_ScanPads();
+                        int buttonsDown = PAD_ButtonsDown(0);
+                        if (buttonsDown & PAD_BUTTON_START) {
+                            break;
+                        }
+                        VIDEO_WaitVSync();
+                    }
+                    
+                    printf("Button pressed, continuing...\n");
                     
                     /* Check video RAM */
                     printf("\nVideo RAM dump (first 32 bytes):\n");
