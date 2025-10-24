@@ -16,13 +16,14 @@
 #include "input.h"
 #include "rom_scanner.h"
 #include "rom_loader.h"
+#include "game_init.h"
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
 
 /* Global Pac-Man state (for CPU interface) */
 void* g_pacman_state = NULL;
-static pacman_state_t pacman;
+pacman_state_t pacman;
 
 /* Video system */
 static video_state_t video;
@@ -408,6 +409,44 @@ int main(int argc, char **argv) {
                         }
                     } else {
                         printf("ROM loader initialization failed\n");
+                    }
+                    
+                    /* Test game initialization */
+                    printf("\n=== Game Initialization Test ===\n");
+                    if (game_init_system()) {
+                        /* Find the loaded ROM set for initialization */
+                        if (rom_scanner_init()) {
+                            rom_set_t rom_sets[MAX_ROM_SETS];
+                            int rom_count = scan_for_rom_sets(rom_sets, MAX_ROM_SETS);
+                            
+                            /* Find first valid Pac-Man ROM set */
+                            bool found_valid_set = false;
+                            for (int i = 0; i < rom_count; i++) {
+                                if (rom_sets[i].valid && is_pacman_rom_set(rom_sets[i].directory)) {
+                                    if (init_pacman_game(&rom_sets[i])) {
+                                        if (start_game_execution()) {
+                                            printf("\nPac-Man game ready!\n");
+                                            printf("Z80 is ready to execute ROM code\n");
+                                            printf("Game state: RUNNING\n");
+                                        } else {
+                                            printf("Game execution failed\n");
+                                        }
+                                    } else {
+                                        printf("Game initialization failed\n");
+                                    }
+                                    found_valid_set = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!found_valid_set) {
+                                printf("No valid Pac-Man ROM set found for initialization\n");
+                            }
+                        } else {
+                            printf("ROM scanner not available for game init\n");
+                        }
+                    } else {
+                        printf("System initialization failed\n");
                     }
                     
                     /* Check video RAM */
